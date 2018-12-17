@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Nov 22 08:38:21 2018
+
+@author: agb
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+#%%  define the function we are trying to approximate
+
+f = lambda x : np.sin(0.9*x).flatten()
+#f = lambda x : (0.25*(x**2)).flatten()
+
+#%% define our kernel function
+
+def kernel(a,b):
+    '''GP squared exponential kernel'''
+    sigf = 1
+    lsq = 1
+    sqdist = np.sum(a**2,1).reshape(-1,1) + np.sum(b**2,1) - 2 * np.dot(a,b.T)
+    return sigf**2 * np.exp(-(1/lsq) * 0.5 * sqdist)
+
+#%% Put together our training data
+
+N = 8
+sysq = 0.005 #noise
+
+X_train = np.random.uniform(-5,5,size=(N,1))
+y = f(X_train)
+
+K = kernel(X_train,X_train)
+L = np.linalg.cholesky(K + sysq * np.eye(N)) # replace 1e-6 with s now for noise
+
+#%% Put together our testing data
+
+n=20
+
+X_test = np.linspace(-5,5,n).reshape(-1,1)
+
+Kss = kernel(X_test,X_test)
+#prior
+L_prior = np.linalg.cholesky(Kss + 1e-6*np.eye(n))
+f_prior = np.dot(L_prior, np.random.normal(size=(n,10)))
+
+#%% Now calculate the mean and variance of our test points
+
+# mu_ = (K_T) . K**-1 . y  since mu(X_) is 0
+# inverting K can be problematic so we decompose via Cholesky K = L.(LT)
+# K**-1 = (L**-1)T.(L**-1)
+# so K**-1 . y = (L**-1)T . (L**-1) . y
+# let m = (L**-1) . y => Lm = y so I solve a linear system of equations
+# now LTa = m so I solve another linear system for a
+
+Ks = kernel(X_train,X_test)
+
+m = np.linalg.solve(L,y)
+a = np.linalg.solve(L.T,m)
+mu = np.dot(Ks.T,a)
+
+u = np.linalg.solve(L,Ks)
+v = np.linalg.solve(L.T,u)
+C = Kss - np.dot(Ks.T,v)
+
+# There's a neat trick to do this a bit quicker:
+#https://stats.stackexchange.com/questions/330185/how-to-calculate-the-standard-deviation-for-a-gaussian-process
+s2 = np.diag(C)
+s = np.sqrt(s2)
+
+#posterior
+L_post = np.linalg.cholesky(C + 1e-6*np.eye(n))
+f_post = mu.reshape(-1,1) + np.dot(L_post, np.random.normal(size=(n,10)))
+
+#%% Plotting :)
+
+plt.figure(0)
+plt.clf()
+plt.plot(X_train,y,'b+',ms=20)
+plt.plot(X_test,f(X_test),'b-')
+plt.plot(X_test,mu,'r--')
+plt.gca().fill_between(X_test.flat, mu-2*s, mu+2*s, color="#eeeeff")
+plt.title("Mean function vs real function")
+plt.axis([-5,5,-5,5])
+
+plt.figure(1)
+plt.clf()
+plt.plot(X_test,f_prior)
+plt.title("Ten samples from the GP prior")
+plt.axis([-5,5,-5,5])
+
+plt.figure(2)
+plt.clf()
+plt.plot(X_test,f_post)
+plt.title("Ten samples from the GP posterior")
+plt.axis([-5,5,-5,5])
+
+plt.show()
