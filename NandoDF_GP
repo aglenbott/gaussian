@@ -18,12 +18,14 @@ f = lambda x : np.sin(0.9*x).flatten()
 
 def kernel(a,b):
     '''GP squared exponential kernel'''
-    sqdist = np.sum(a**2,1).reshape(-1,1) + np.sum(b**2,1) - 2*np.dot(a,b.T)
-    return np.exp(-0.5*sqdist)
+    sigf = 1
+    lsq = 1
+    sqdist = np.sum(a**2,1).reshape(-1,1) + np.sum(b**2,1) - 2 * np.dot(a,b.T)
+    return sigf**2 * np.exp(-(1/lsq) * 0.5 * sqdist)
 
 #%% Put together our training data
 
-N = 10
+N = 8
 
 X_train = np.random.uniform(-5,5,size=(N,1))
 y = f(X_train)
